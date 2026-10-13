@@ -137,7 +137,10 @@ jobs:
           # root porting Makefile's adb-mobile target copies libadb-full.a into ./libs/...
           # relative to the porting/ dir (= porting/libs/...). Pre-create writable dirs.
           rm -rf libs porting/libs 2>/dev/null || true
-          mkdir -p porting/libs/iphoneos/arm64 porting/libs/iphonesimulator/arm64 porting/libs/iphonesimulator/x86_64
+          # adb-mobile target does 'cp adb_public.h -> ./libs/include' (relative to porting/);
+          # if include doesn't exist the cp turns ./libs/include into a FILE, then libsdl's
+          # make-libsdl.sh 'mkdir -p include' fails with 'File exists'. Pre-create include dir.
+          mkdir -p porting/libs/include porting/libs/iphoneos/arm64 porting/libs/iphonesimulator/arm64 porting/libs/iphonesimulator/x86_64
           chmod -R u+rwX porting/libs
           make -C porting
       - name: Build scrcpy-server
