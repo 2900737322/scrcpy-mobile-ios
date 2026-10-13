@@ -14,16 +14,40 @@ jobs:
       - name: Fetch submodules
         run: |
           python3 - <<'PY'
-          import configparser, subprocess, os
+          import configparser, subprocess, os, time
+          def clean(path):
+              subprocess.run(['rm','-rf',path])
           c = configparser.ConfigParser()
           c.read('.gitmodules')
           for s in c.sections():
               path = c[s]['path']; url = c[s]['url']
-              if os.path.exists(path):
+              if os.path.exists(path) and os.listdir(path):
                   print('skip', path, flush=True); continue
               os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-              print('cloning', url, flush=True)
-              subprocess.run(['git', 'clone', '--depth', '1', '--recurse-submodules', url, path], check=True)
+              ok=False
+              for attempt in range(8):
+                  try:
+                      print('cloning', url, '->', path, flush=True)
+                      if path == 'external/adb-mobile':
+                          subprocess.run(['git','clone','--depth','1',url,path], check=True)
+                          # nested vendor submodules may hit googlesource 503; retry until done
+                          for i in range(10):
+                              r=subprocess.run(['git','submodule','update','--init','--recursive'], cwd=path, capture_output=True)
+                              if r.returncode==0:
+                                  print('adb-mobile submodules ok', flush=True); break
+                              print('adb-mobile submodule retry', i+1, flush=True)
+                              time.sleep(25)
+                          else:
+                              raise SystemExit('adb-mobile submodules failed')
+                      else:
+                          subprocess.run(['git','clone','--depth','1','--recurse-submodules',url,path], check=True, capture_output=True)
+                      ok=True
+                      break
+                  except Exception as e:
+                      print('retry', attempt+1, path, flush=True)
+                      clean(path); time.sleep(20)
+              if not ok:
+                  raise SystemExit('clone failed: '+path)
           PY
       - name: Install tools
         run: |
