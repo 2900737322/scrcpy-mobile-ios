@@ -64,9 +64,28 @@ jobs:
           for line in open(p):
               if 'install(TARGETS zstd' in line: print('PATCHED:',line.rstrip())
           PY
+      - name: Patch adb to use built protobuf
+        run: |
+          python3 - <<'PY'
+          p='external/adb-mobile/porting/scripts/make-adb.sh'
+          s=open(p).read()
+          old='-DANDROID_TOOLS_USE_BUNDLED_LIBUSB=ON \\'
+          new=(old+'\n\t-DProtobuf_INCLUDE_DIR="$SOURCE_ROOT/external/protobuf/src" \\\n'
+               '\t-DProtobuf_LIBRARY="$FULL_OUTPUT/libprotobuf.a" \\\n'
+               '\t-DProtobuf_LITE_LIBRARY="$FULL_OUTPUT/libprotobuf-lite.a" \\\n'
+               '\t-DProtobuf_PROTOC_EXECUTABLE="$HOME/protoc/bin/protoc" \\')
+          if old in s and new not in s:
+              s=s.replace(old,new)
+              open(p,'w').write(s)
+              print('ADB PATCHED OK')
+          elif new in s:
+              print('ADB ALREADY PATCHED')
+          else:
+              print('ADB PATCH FAIL: marker not found')
+          PY
       - name: Install tools
         run: |
-          brew install meson ninja cmake openjdk@17 protobuf || true
+          brew install meson ninja cmake openjdk@17 || true
           # adb-mobile requires exact protoc 28.3 -> download official binary
           if ! protoc --version 2>/dev/null | grep -q "28.3"; then
             echo "installing protoc 28.3..."
