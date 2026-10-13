@@ -128,6 +128,8 @@ jobs:
       - name: Build porting libs
         run: |
           which cmake; cmake --version | head -1
+          # CRITICAL: scrcpy-mobile-main.zip 解压出的 porting/ 默认只读(555)，导致 mkdir/cp 到 porting/libs 失败
+          sudo chmod -R u+rwX porting 2>/dev/null || chmod -R u+rwX porting 2>/dev/null || true
           # CRITICAL: never create external/adb-mobile/libs — 'libs' is a plain (non-phony) make
           # target in adb-mobile's root Makefile; if that directory exists, make treats the
           # target as up-to-date and SKIPS compiling lz4/zstd/brotli/protobuf/adb -> no *.a.
