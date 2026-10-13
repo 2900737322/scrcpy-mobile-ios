@@ -128,7 +128,11 @@ jobs:
       - name: Build porting libs
         run: |
           which cmake; cmake --version | head -1
-          rm -rf libs && mkdir -p libs/iphoneos/arm64 libs/iphonesimulator/arm64 libs/iphonesimulator/x86_64 && chmod -R u+rwX libs
+          for d in libs external/adb-mobile/libs; do
+            rm -rf "$d" 2>/dev/null || true
+            mkdir -p "$d/iphoneos/arm64" "$d/iphonesimulator/arm64" "$d/iphonesimulator/x86_64"
+            chmod -R u+rwX "$d"
+          done
           make -C porting
       - name: Build scrcpy-server
         run: make -C porting scrcpy-server
