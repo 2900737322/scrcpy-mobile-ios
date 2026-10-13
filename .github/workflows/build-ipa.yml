@@ -9,8 +9,8 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-      - name: Unpack source (python handles unicode names)
-        run: python3 -c "import zipfile; zipfile.ZipFile('scrcpy-mobile-main.zip').extractall()"
+      - name: Unpack source
+        run: unzip -o scrcpy-mobile-main.zip -x 'README*' || true
       - name: Init repo and submodules
         run: |
           git init -q
