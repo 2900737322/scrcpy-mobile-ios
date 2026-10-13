@@ -49,12 +49,21 @@ jobs:
               if not ok:
                   raise SystemExit('clone failed: '+path)
           PY
-      - name: Patch zstd for CMake4 compat
+      - name: Patch zstd for CMake compat
         run: |
-          F=external/adb-mobile/external/zstd/build/cmake/programs/CMakeLists.txt
-          sed -i '' 's/install(TARGETS zstd RUNTIME DESTINATION bin)/install(TARGETS zstd RUNTIME DESTINATION bin BUNDLE DESTINATION bin)/g' "$F"
-          sed -i '' 's/install(TARGETS zstd)/install(TARGETS zstd RUNTIME DESTINATION bin BUNDLE DESTINATION bin)/g' "$F"
-          grep -n "install(TARGETS zstd" "$F" || echo "no zstd install line found"
+          python3 - <<'PY'
+          import re
+          p='external/adb-mobile/external/zstd/build/cmake/programs/CMakeLists.txt'
+          s=open(p).read()
+          def fix(m):
+              line=m.group(0)
+              if 'BUNDLE DESTINATION' in line: return line
+              return line[:-1]+' BUNDLE DESTINATION bin)' if line.endswith(')') else line
+          s=re.sub(r'install\(TARGETS zstd[^)]*\)', fix, s)
+          open(p,'w').write(s)
+          for line in open(p):
+              if 'install(TARGETS zstd' in line: print('PATCHED:',line.rstrip())
+          PY
       - name: Install tools
         run: |
           brew install meson ninja cmake openjdk@17 || true
