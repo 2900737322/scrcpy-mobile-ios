@@ -82,10 +82,21 @@ jobs:
               print('ADB ALREADY PATCHED')
           else:
               print('ADB PATCH FAIL: marker not found')
+          # add absl (protobuf bundled) + brew include dirs so adb finds absl/gtest/etc
+          b_old='CXX_INCLUDES = -I$BORINGSSL_DIR/include |g'
+          b_new='CXX_INCLUDES = -I$BORINGSSL_DIR/include -I$SOURCE_ROOT/external/protobuf/third_party/abseil-cpp -I/opt/homebrew/include |g'
+          if b_old in s and b_new not in s:
+              s=s.replace(b_old,b_new)
+              open(p,'w').write(s)
+              print('ADB INCLUDE PATCHED OK')
+          elif b_new in s:
+              print('ADB INCLUDE ALREADY PATCHED')
+          else:
+              print('ADB INCLUDE PATCH FAIL: marker not found')
           PY
       - name: Install tools
         run: |
-          brew install meson ninja cmake openjdk@17 || true
+          brew install meson ninja cmake openjdk@17 lz4 brotli googletest || true
           # adb-mobile requires exact protoc 28.3 -> download official binary
           if ! protoc --version 2>/dev/null | grep -q "28.3"; then
             echo "installing protoc 28.3..."
