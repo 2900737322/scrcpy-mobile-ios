@@ -40,6 +40,15 @@ jobs:
             export PATH="$HOME/protoc/bin:$PATH"
           fi
           protoc --version
+          # CMake 4.x breaks zstd 1.4.7 (MACOSX_BUNDLE install needs BUNDLE DESTINATION) -> use CMake 3.x
+          if cmake --version 2>/dev/null | head -1 | grep -qE "cmake version 4\."; then
+            echo "installing CMake 3.30.5..."
+            curl -sSL -o /tmp/cmake.tar.gz "https://github.com/Kitware/CMake/releases/download/v3.30.5/cmake-3.30.5-macos-universal.tar.gz"
+            mkdir -p "$HOME/cmake"; tar -xzf /tmp/cmake.tar.gz -C "$HOME/cmake"
+            CMAKEBIN=$(find "$HOME/cmake" -path "*/CMake.app/Contents/bin" -type d | head -1)
+            echo "$CMAKEBIN" >> "$GITHUB_PATH"; export PATH="$CMAKEBIN:$PATH"
+          fi
+          cmake --version | head -1
           echo "/opt/homebrew/opt/openjdk@17/bin:$PATH" >> "$GITHUB_PATH"
           export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
           java -version
