@@ -49,6 +49,12 @@ jobs:
               if not ok:
                   raise SystemExit('clone failed: '+path)
           PY
+      - name: Patch zstd for CMake4 compat
+        run: |
+          F=external/adb-mobile/external/zstd/build/cmake/programs/CMakeLists.txt
+          sed -i '' 's/install(TARGETS zstd RUNTIME DESTINATION bin)/install(TARGETS zstd RUNTIME DESTINATION bin BUNDLE DESTINATION bin)/g' "$F"
+          sed -i '' 's/install(TARGETS zstd)/install(TARGETS zstd RUNTIME DESTINATION bin BUNDLE DESTINATION bin)/g' "$F"
+          grep -n "install(TARGETS zstd" "$F" || echo "no zstd install line found"
       - name: Install tools
         run: |
           brew install meson ninja cmake openjdk@17 || true
@@ -70,6 +76,8 @@ jobs:
             curl -sSL -o /tmp/cmake.tar.gz "https://github.com/Kitware/CMake/releases/download/v3.30.5/cmake-3.30.5-macos-universal.tar.gz"
             mkdir -p "$HOME/cmake"; tar -xzf /tmp/cmake.tar.gz -C "$HOME/cmake"
             CMAKEBIN=$(find "$HOME/cmake" -path "*/CMake.app/Contents/bin" -type d | head -1)
+            echo "CMAKEBIN=$CMAKEBIN"
+            brew unlink cmake 2>/dev/null || true
             ln -sf "$CMAKEBIN/cmake" /opt/homebrew/bin/cmake
             ln -sf "$CMAKEBIN/cmake" /usr/local/bin/cmake 2>/dev/null || true
             echo "$CMAKEBIN" >> "$GITHUB_PATH"; export PATH="$CMAKEBIN:$PATH"
@@ -79,7 +87,9 @@ jobs:
           export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
           java -version
       - name: Build porting libs
-        run: make -C porting
+        run: |
+          which cmake; cmake --version | head -1
+          make -C porting
       - name: Build scrcpy-server
         run: make -C porting scrcpy-server
       - name: Archive
