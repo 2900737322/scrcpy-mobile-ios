@@ -1,0 +1,43 @@
+name: Build Unsigned IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack source
+        run: unzip -o scrcpy-mobile-main.zip -d .
+      - name: Init submodules
+        run: git submodule update --init --recursive
+      - name: Install tools
+        run: |
+          brew install meson ninja cmake openjdk@17 || true
+          echo "/opt/homebrew/opt/openjdk@17/bin:$PATH" >> "$GITHUB_PATH"
+      - name: Build libs
+        run: make libs
+      - name: Build server
+        run: make -C porting scrcpy-server
+      - name: Archive
+        run: |
+          set -euo pipefail
+          rm -rf build/archive build/ipa
+          mkdir -p build/archive
+          xcodebuild archive -project "scrcpy-app/Scrcpy Remote.xcodeproj" -scheme "Scrcpy Remote" -configuration Debug -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/archive/ScrcpyRemote.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ENABLE_BITCODE=NO
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          mkdir -p build/ipa/Payload
+          cp -R "build/archive/ScrcpyRemote.xcarchive/Products/Applications/Scrcpy Remote.app" build/ipa/Payload/
+          cd build/ipa
+          zip -qr ../../ScrcpyRemote-unsigned.ipa Payload
+          cd ../..
+          ls -lh ScrcpyRemote-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ScrcpyRemote-unsigned-ipa
+          path: ScrcpyRemote-unsigned.ipa
+          retention-days: 30
