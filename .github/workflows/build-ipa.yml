@@ -170,6 +170,38 @@ jobs:
           make -C porting scrcpy
       - name: Build scrcpy-server
         run: make -C porting scrcpy-server
+      - name: Build VNC deps (libvncclient)
+        run: |
+          set -euo pipefail
+          # VNCClient target links -lvncclient -lSDL3 -lavcodec ... and #import <rfb/rfbclient.h>.
+          # SDL3/ffmpeg libs+headers already exist (porting/libs/iphoneos/arm64 + porting/libs/include).
+          # Missing: libvncclient.a + rfb/ headers (external/libvncserver was cloned by Fetch submodules)
+          # and OpenSSL (not needed -> build libvncserver with TLS disabled and drop -lssl/-lcrypto).
+          cd external/libvncserver
+          cmake -B build_ios -G Xcode \
+            -DCMAKE_TOOLCHAIN_FILE="$(pwd)/../../ios-cmake/ios.toolchain.cmake" \
+            -DPLATFORM=OS64 -DDEPLOYMENT_TARGET=15.0 -DENABLE_BITCODE=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLIBVNCSERVER_HAVE_GNUTLS=OFF -DLIBVNCSERVER_HAVE_OPENSSL=OFF \
+            -DLIBVNCSERVER_HAVE_SASL=OFF -DLIBVNCSERVER_HAVE_LZO=OFF \
+            -DBUILD_SHARED_LIBS=OFF
+          cmake --build build_ios --config Release --target vncclient
+          # install into the same place the app's HEADER/LIBRARY_SEARCH_PATHS already point at
+          sudo chmod -R u+rwX ../../porting/libs
+          cp build_ios/Release-iphoneos/libvncclient.a ../../porting/libs/iphoneos/arm64/
+          mkdir -p ../../porting/libs/include/rfb
+          cp -R include/rfb/ ../../porting/libs/include/rfb/
+          ls -la ../../porting/libs/iphoneos/arm64/libvncclient.a ../../porting/libs/include/rfb/rfbclient.h
+          cd ../..
+          # VNCClient was built with OpenSSL/TLS disabled, so drop its -lssl/-lcrypto link flags
+          sudo chmod -R u+rwX scrcpy-app
+          python3 - <<'PY'
+p='scrcpy-app/Scrcpy Remote.xcodeproj/project.pbxproj'
+s=open(p).read()
+s=s.replace('\t\t\t\t\t"-lssl",\n','').replace('\t\t\t\t\t"-lcrypto",\n','')
+open(p,'w').write(s)
+print('pbxproj dropped -lssl/-lcrypto:', '-lssl' not in s and '-lcrypto' not in s)
+PY
       - name: Archive
         run: |
           set -euo pipefail
