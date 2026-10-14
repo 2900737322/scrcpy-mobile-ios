@@ -173,8 +173,10 @@ jobs:
       - name: Archive
         run: |
           set -euo pipefail
-          # Project.pbxproj is Xcode16 format (objectVersion 77 + PBXFileSystemSynchronizedRootGroup).
-          # Xcode 15 (macos-14) cannot open it at all; run on macos-15 (Xcode 16) which reads it natively.
+          # Project.pbxproj is Xcode16 format (objectVersion 77 + PBXFileSystemSynchronizedRootGroup);
+          # must run on macos-15 (Xcode 16). The zip extracts read-only, and Xcode16 needs to write
+          # project.xcworkspace/xcshareddata/swiftpm (SPM Package.resolved) -> chmod the app tree writable.
+          sudo chmod -R u+rwX scrcpy-app
           mkdir -p build/archive
           xcodebuild archive -project "scrcpy-app/Scrcpy Remote.xcodeproj" -scheme "Scrcpy Remote" -configuration Debug -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/archive/ScrcpyRemote.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ENABLE_BITCODE=NO
       - name: Package IPA
