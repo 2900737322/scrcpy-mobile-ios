@@ -182,8 +182,9 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$(pwd)/../../ios-cmake/ios.toolchain.cmake" \
             -DPLATFORM=OS64 -DDEPLOYMENT_TARGET=15.0 -DENABLE_BITCODE=OFF \
             -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_GNUTLS=OFF -DWITH_OPENSSL=OFF \
+            -DWITH_SASL=OFF -DWITH_LZO=OFF -DWITH_ZLIB=ON -DWITH_THREADS=OFF \
             -DLIBVNCSERVER_HAVE_GNUTLS=OFF -DLIBVNCSERVER_HAVE_OPENSSL=OFF \
-            -DLIBVNCSERVER_HAVE_SASL=OFF -DLIBVNCSERVER_HAVE_LZO=OFF \
             -DBUILD_SHARED_LIBS=OFF
           cmake --build build_ios --config Release --target vncclient
           # install into the same place the app's HEADER/LIBRARY_SEARCH_PATHS already point at
