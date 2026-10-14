@@ -148,11 +148,12 @@ jobs:
           # make-libsdl.sh 'mkdir -p include' fails with 'File exists'. Pre-create include dir.
           mkdir -p porting/libs/include porting/libs/iphoneos/arm64 porting/libs/iphonesimulator/arm64 porting/libs/iphonesimulator/x86_64
           chmod -R u+rwX porting/libs
-          # Build adb + libsdl + ffmpeg first. ffmpeg's `make install` emits .pc into its
-          # own build dir (build/ffmpeg/iphoneos-arm64/lib/pkgconfig), but NOT into the
-          # PKG_CONFIG_PATH dir that scrcpy-config/meson and make-scrcpy.sh/cmake expect,
-          # hence "Dependency libavformat not found". Copy them over.
-          make -C porting ffmpeg
+          # Build adb-mobile + libsdl + ffmpeg first. Each emits its pkg-config .pc:
+          #  - make-libsdl.sh generates sdl3.pc into porting/libs/lib/pkgconfig (OS64 pass)
+          #  - ffmpeg's `make install` emits .pc into its own build dir, NOT into the
+          #    PKG_CONFIG_PATH dir that scrcpy-config/meson & make-scrcpy.sh/cmake expect,
+          #    hence "Dependency libavformat/sdl3 not found". Copy ffmpeg's over.
+          make -C porting adb-mobile libsdl ffmpeg
           mkdir -p porting/libs/lib/pkgconfig
           cp -v porting/build/ffmpeg/iphoneos-arm64/lib/pkgconfig/*.pc porting/libs/lib/pkgconfig/ 2>/dev/null || true
           ls porting/libs/lib/pkgconfig/ 2>/dev/null || true
