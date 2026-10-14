@@ -31,47 +31,110 @@ jobs:
           ls -la
       - name: Fetch submodules
         run: |
-          python3 - <<'PY'
-          import configparser, subprocess, os, time
-          def clean(path):
-              subprocess.run(['rm','-rf',path])
-          c = configparser.ConfigParser()
-          c.read('.gitmodules')
-          for s in c.sections():
-              path = c[s]['path']; url = c[s]['url']
-              # The source zip ships empty placeholder dirs for every submodule; git
-              # clone refuses non-empty targets, so always remove then clone fresh.
-              if os.path.exists(path):
-                  print('cleaning existing', path, flush=True)
-                  clean(path)
-              os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-              ok=False
-              for attempt in range(8):
+          import configparser, subprocess, os, time, shutil, sys
+
+          def G(args, cwd=None, timeout=1750):
+              return subprocess.run(['git']+args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+
+          def wipe(path):
+              if os.path.lexists(path):
+                  subprocess.run(['chmod','-R','u+rwX',path], capture_output=True)
+                  shutil.rmtree(path, ignore_errors=True)
+
+          # resilient git defaults for flaky googlesource (huge monorepos, pinned revs)
+          for k,v in [('protocol.version','2'),('submodule.fetchJobs','8'),('fetch.parallel','8'),
+                      ('http.postBuffer','524288000'),('http.lowSpeedLimit','0'),
+                      ('http.lowSpeedTime','999999'),('fetch.fsmonitor','false'),
+                      ('core.fsmonitor','false')]:
+              G(['config','--global',k,v])
+
+          def ready(repo):
+              r=G(['submodule','status','--recursive'],cwd=repo,timeout=180)
+              if r.returncode!=0: return False
+              bad=[]
+              for ln in r.stdout.splitlines():
+                  if ln and ln[0]!=' ':
+                      bad.append(ln.split()[1] if len(ln.split())>1 else '?')
+              if bad: print('   pending:',bad[:20], flush=True)
+              return not bad
+
+          def repair(root):
+              r=G(['submodule','status','--recursive'],cwd=root,timeout=180)
+              for ln in r.stdout.splitlines():
+                  if not ln or ln[0]==' ': continue
+                  parts=ln[1:].strip().split()
+                  if len(parts)<2: continue
+                  sha,rel=parts[0],parts[1]
+                  d=os.path.join(root,rel)
+                  if os.path.isdir(d) and G(['rev-parse','--is-inside-work-tree'],cwd=d,timeout=60).returncode==0:
+                      G(['fetch','--filter=blob:none','origin'],cwd=d,timeout=1700)
+                      G(['fetch','--unshallow','origin'],cwd=d,timeout=1700)
+                      G(['checkout','-f',sha],cwd=d,timeout=600)
+              G(['submodule','update','--init','--recursive','--filter=blob:none','--jobs','8'],cwd=root,timeout=1750)
+
+          def wait_submodules(repo):
+              G(['submodule','sync','--recursive'],cwd=repo,timeout=300)
+              strategies=[
+                (4,['submodule','update','--init','--recursive','--filter=blob:none','--jobs','8']),
+                (3,['submodule','update','--init','--recursive','--no-recommend-shallow','--jobs','8']),
+              ]
+              for tries,strat in strategies:
+                  for a in range(tries):
+                      r=G(strat,cwd=repo,timeout=1750)
+                      if ready(repo): return True
+                      tail=((r.stderr or '')+(r.stdout or ''))[-500:]
+                      print('   submod attempt',a+1,' '.join(strat[3:6]),'rc',r.returncode,tail, flush=True)
+                      try: repair(repo)
+                      except Exception as e: print('   repair note',str(e)[-200:],flush=True)
+                      if ready(repo): return True
+                      time.sleep(20)
+              return False
+
+          def simple_clone(url,path):
+              for a in range(6):
+                  wipe(path); os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
                   try:
-                      print('cloning', url, '->', path, flush=True)
-                      if path == 'external/adb-mobile':
-                          subprocess.run(['git','clone','--depth','1',url,path], check=True, timeout=240)
-                          # nested vendor submodules may hit googlesource 503; retry until done
-                          for i in range(10):
-                              r=subprocess.run(['git','submodule','update','--init','--recursive'], cwd=path, capture_output=True, text=True, timeout=300)
-                              if r.returncode==0:
-                                  print('adb-mobile submodules ok', flush=True); break
-                              print('adb-mobile submodule retry', i+1, str(r.stderr)[-300:], flush=True)
-                              time.sleep(25)
-                          else:
-                              raise SystemExit('adb-mobile submodules failed')
-                      else:
-                          r=subprocess.run(['git','clone','--depth','1','--recurse-submodules',url,path], check=False, capture_output=True, text=True, timeout=300)
-                          if r.returncode!=0:
-                              raise SystemExit('clone failed %s: %s' % (path, str(r.stderr)[-800:]))
-                      ok=True
-                      break
+                      r=subprocess.run(['git','clone','--depth','1','--recurse-submodules',url,path],
+                                       capture_output=True,text=True,timeout=1400)
+                      if r.returncode==0: return True
+                      print('   clone retry',a+1,path,(r.stderr or '')[-500:],flush=True)
                   except Exception as e:
-                      print('retry', attempt+1, path, str(e)[-400:], flush=True)
-                      clean(path); time.sleep(20)
+                      print('   clone exc',a+1,path,str(e)[-300:],flush=True)
+                  wipe(path); time.sleep(min(15*(a+1),60))
+              return False
+
+          def adb_clone(url,path):
+              for a in range(6):
+                  wipe(path); os.makedirs(os.path.dirname(path),exist_ok=True)
+                  try:
+                      r=subprocess.run(['git','clone','--depth','1',url,path],capture_output=True,text=True,timeout=600)
+                      if r.returncode==0: break
+                  except Exception as e:
+                      print('   adb clone exc',a+1,str(e)[-200:],flush=True)
+                  wipe(path); time.sleep(15)
+              else:
+                  return False
+              return wait_submodules(path)
+
+          c=configparser.ConfigParser(); c.read('.gitmodules')
+          for s in c.sections():
+              path=c[s]['path']; url=c[s]['url']
+              if os.path.lexists(path):
+                  print('cleaning existing',path,flush=True); wipe(path)
+              print('=== fetch',path,flush=True)
+              ok = adb_clone(url,path) if path=='external/adb-mobile' else simple_clone(url,path)
               if not ok:
-                  raise SystemExit('clone failed: '+path)
-          PY
+                  raise SystemExit('FATAL submodule fetch failed: '+path)
+              print('OK',path,flush=True)
+
+          # make-adb.sh re-runs a bare recursive update during the build; make it resilient too
+          mk='external/adb-mobile/porting/scripts/make-adb.sh'
+          if os.path.exists(mk):
+              d=open(mk).read()
+              d=d.replace('git submodule update --init --recursive --force',
+                          'git submodule update --init --recursive --filter=blob:none --jobs 8 --force || git submodule update --init --recursive --no-recommend-shallow --force')
+              open(mk,'w').write(d)
+          print('ALL SUBMODULES READY')
       - name: Patch zstd for CMake compat
         run: |
           python3 - <<'PY'
