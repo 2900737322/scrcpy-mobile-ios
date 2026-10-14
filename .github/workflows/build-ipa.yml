@@ -31,6 +31,7 @@ jobs:
           ls -la
       - name: Fetch submodules
         run: |
+          python3 - <<'PY'
           import configparser, subprocess, os, time, shutil, sys
 
           def G(args, cwd=None, timeout=1750):
@@ -135,6 +136,7 @@ jobs:
                           'git submodule update --init --recursive --filter=blob:none --jobs 8 --force || git submodule update --init --recursive --no-recommend-shallow --force')
               open(mk,'w').write(d)
           print('ALL SUBMODULES READY')
+          PY
       - name: Patch zstd for CMake compat
         run: |
           python3 - <<'PY'
@@ -344,3 +346,4 @@ jobs:
           name: ScrcpyRemote-unsigned-ipa
           path: ScrcpyRemote-unsigned.ipa
           retention-days: 30
+
