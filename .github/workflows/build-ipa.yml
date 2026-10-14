@@ -163,6 +163,14 @@ jobs:
               if not ok:
                   raise SystemExit('FATAL submodule fetch failed: '+path)
               print('OK',path,flush=True)
+              if path=='scrcpy':
+                  PIN='2322868e9e256eb5fce0b3d659ab2a409f29bae1'
+                  for a in range(4):
+                      G(['fetch','--depth','1','origin',PIN],cwd=path,timeout=900)
+                      cr=G(['checkout','-f',PIN],cwd=path,timeout=300)
+                      if cr.returncode==0:
+                          print('   scrcpy pinned to',PIN,flush=True); break
+                      print('   scrcpy pin retry',a+1,(cr.stderr or '')[-300:],flush=True); time.sleep(10)
 
           # make-adb.sh re-runs a bare recursive update during the build; make it resilient too
           mk='external/adb-mobile/porting/scripts/make-adb.sh'
