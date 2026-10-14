@@ -10,7 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Unpack source
-        run: unzip -o scrcpy-mobile-main.zip -x 'README*' || true
+        run: |
+          # Source zip is uploaded as 5 parts (API request-body limit on this network);
+          # reassemble before unpacking.
+          cat scrcpy-mobile-main.zip.part* > scrcpy-mobile-main.zip
+          ls -la scrcpy-mobile-main.zip
+          unzip -o scrcpy-mobile-main.zip -x 'README*' || true
       - name: Fetch submodules
         run: |
           python3 - <<'PY'
