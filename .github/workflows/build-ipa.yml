@@ -25,6 +25,9 @@ jobs:
           mv * ../ 2>/dev/null || true
           cd ..
           rmdir scrcpy-mobile-main 2>/dev/null || true
+          # zip ships placeholder dirs (e.g. external/) without execute bit
+          # (drw-r--r--), so git can't create subdirs under them -> chmod all.
+          sudo chmod -R u+rwX .
           ls -la
       - name: Fetch submodules
         run: |
