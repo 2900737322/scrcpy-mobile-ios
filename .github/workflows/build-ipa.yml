@@ -206,6 +206,24 @@ jobs:
           open(p,'w').write(s)
           print('pbxproj dropped -lssl/-lcrypto:', '-lssl' not in s and '-lcrypto' not in s)
           PY
+      - name: Build libtsnet (Tailscale tsnet)
+        run: |
+          set -euo pipefail
+          # Main target's Swift (TailscaleManager) calls tsnet_* C functions and links -ltsnet-forwarder.
+          # libtsnet is a Go+cgo library; its header + static lib are only produced by a Go build
+          # (upstream porting/Makefile tsnet-forwarder target). Archive builds iphoneos/arm64 only,
+          # so build just that arch and copy .a + header into porting/libs where the app's
+          # HEADER/LIBRARY_SEARCH_PATHS already point.
+          which go || brew install go
+          go version
+          cd porting/libtsnet
+          make build-iphoneos-arm64
+          sudo chmod -R u+rwX ../../libs
+          cp build/iphoneos/arm64/libtsnet-forwarder.a ../../libs/iphoneos/arm64/
+          mkdir -p ../../libs/include
+          cp build/iphoneos/arm64/libtsnet-forwarder.h ../../libs/include/
+          cd ../..
+          ls -la porting/libs/iphoneos/arm64/libtsnet-forwarder.a porting/libs/include/libtsnet-forwarder.h
       - name: Archive
         run: |
           set -euo pipefail
