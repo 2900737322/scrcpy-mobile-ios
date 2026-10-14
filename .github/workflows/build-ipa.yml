@@ -128,6 +128,12 @@ jobs:
       - name: Build porting libs
         run: |
           which cmake; cmake --version | head -1
+          # ffmpeg's make-ffmpeg.sh configure uses --as="gas-preprocessor.pl ..." but the
+          # runner has no gas-preprocessor in PATH -> "GNU assembler not found". Install it.
+          mkdir -p "$HOME/bin"
+          curl -o "$HOME/bin/gas-preprocessor.pl" -sSL -m 60 https://raw.githubusercontent.com/FFmpeg/gas-preprocessor/master/gas-preprocessor.pl || true
+          chmod +x "$HOME/bin/gas-preprocessor.pl" 2>/dev/null || true
+          export PATH="$HOME/bin:$PATH"
           # CRITICAL: scrcpy-mobile-main.zip 解压出的 porting/ 默认只读(555)，导致 mkdir/cp 到 porting/libs 失败
           sudo chmod -R u+rwX porting 2>/dev/null || chmod -R u+rwX porting 2>/dev/null || true
           # CRITICAL: never create external/adb-mobile/libs — 'libs' is a plain (non-phony) make
