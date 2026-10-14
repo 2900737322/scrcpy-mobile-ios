@@ -15,7 +15,43 @@ jobs:
           # reassemble before unpacking.
           cat scrcpy-mobile-main.zip.part* > scrcpy-mobile-main.zip
           ls -la scrcpy-mobile-main.zip
-          unzip -o scrcpy-mobile-main.zip -x 'README*' || true
+          python3 - <<'PY'
+          import zipfile, os, shutil
+          shutil.rmtree('scrcpy-mobile-main', ignore_errors=True)
+          z = zipfile.ZipFile('scrcpy-mobile-main.zip')
+          n = 0; skip = 0; fail = 0
+          for info in z.infolist():
+              name = info.filename.replace('\\', '/')
+              parts = name.split('/'); safe = []; drop = False
+              for p in parts:
+                  if p == '':
+                      safe.append(p); continue
+                  try:
+                      p.encode('ascii'); safe.append(p)
+                  except UnicodeEncodeError:
+                      if p.lower().endswith('.md'):
+                          drop = True; break
+                      safe.append(p.encode('ascii', 'ignore').decode() or 'file')
+              if drop:
+                  print('SKIP non-ascii doc:', name); skip += 1; continue
+              name = '/'.join(safe)
+              t = os.path.normpath(name)
+              if t.startswith('..') or os.path.isabs(t):
+                  print('SKIP unsafe path:', name); continue
+              if info.is_dir() or name.endswith('/'):
+                  os.makedirs(t, exist_ok=True); continue
+              os.makedirs(os.path.dirname(t) or '.', exist_ok=True)
+              try:
+                  with z.open(info) as src, open(t, 'wb') as dst:
+                      shutil.copyfileobj(src, dst)
+                  n += 1
+              except Exception as e:
+                  fail += 1; print('EXTRACT FAIL', name, e)
+          print('extracted', n, 'files; skipped', skip, '; failed', fail)
+          assert os.path.isfile('scrcpy-mobile-main/porting/Makefile'), 'porting/Makefile missing after extract!'
+          assert os.path.isdir('scrcpy-mobile-main/scrcpy-app'), 'scrcpy-app missing after extract!'
+          print('EXTRACT OK')
+          PY
           # The source zip wraps everything under a single top-level folder scrcpy-mobile-main/
           # (porting/, external/, .gitmodules, ios-cmake/, scrcpy-app/...). Every later step
           # (Fetch submodules, Patch zstd/adb, Build porting, Build VNC, Build libtsnet, Archive)
