@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
@@ -173,11 +173,8 @@ jobs:
       - name: Archive
         run: |
           set -euo pipefail
-          # pbxproj is Xcode16 format (objectVersion 77); the macos-14 runner's Xcode 15.4
-          # refuses to open "future format (77)". Downgrade to the Xcode14/15 format (60).
-          # The scrcpy-mobile project uses no objectVersion-77-only constructs, so 60 parses.
-          sed -i '' 's/objectVersion = 77;/objectVersion = 60;/' "scrcpy-app/Scrcpy Remote.xcodeproj/project.pbxproj"
-          sed -i '' 's/preferredProjectObjectVersion = 77;/preferredProjectObjectVersion = 60;/' "scrcpy-app/Scrcpy Remote.xcodeproj/project.pbxproj"
+          # Project.pbxproj is Xcode16 format (objectVersion 77 + PBXFileSystemSynchronizedRootGroup).
+          # Xcode 15 (macos-14) cannot open it at all; run on macos-15 (Xcode 16) which reads it natively.
           mkdir -p build/archive
           xcodebuild archive -project "scrcpy-app/Scrcpy Remote.xcodeproj" -scheme "Scrcpy Remote" -configuration Debug -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/archive/ScrcpyRemote.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ENABLE_BITCODE=NO
       - name: Package IPA
