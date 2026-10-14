@@ -222,7 +222,10 @@ jobs:
           # "cannot find main module". Create the module and resolve all deps from the
           # shipped go.sum (tailscale.com/tsnet + transitive), then build the c-archive.
           if [ ! -f go.mod ]; then
-            go mod init tsnet-forwarder
+            # Module path MUST equal the local import path used by cmd/c-binding
+            # (`forwarder "me.wsen.scrcpy-tsnet/lib"`), otherwise go treats lib as an
+            # external module and tries to resolve me.wsen.scrcpy-tsnet over DNS (fails).
+            go mod init me.wsen.scrcpy-tsnet
           fi
           GOFLAGS=-mod=mod go mod tidy
           make build-iphoneos-arm64
