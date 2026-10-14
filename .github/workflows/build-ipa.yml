@@ -217,6 +217,14 @@ jobs:
           which go || brew install go
           go version
           cd porting/libtsnet
+          # libtsnet upstream ships go.sum but NOT go.mod (it was never committed, a upstream
+          # oversight: .gitignore only lists build/.idea). `go build` fails with
+          # "cannot find main module". Create the module and resolve all deps from the
+          # shipped go.sum (tailscale.com/tsnet + transitive), then build the c-archive.
+          if [ ! -f go.mod ]; then
+            go mod init tsnet-forwarder
+          fi
+          GOFLAGS=-mod=mod go mod tidy
           make build-iphoneos-arm64
           sudo chmod -R u+rwX ../../libs
           cp build/iphoneos/arm64/libtsnet-forwarder.a ../../libs/iphoneos/arm64/
