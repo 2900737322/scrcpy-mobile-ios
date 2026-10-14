@@ -16,6 +16,16 @@ jobs:
           cat scrcpy-mobile-main.zip.part* > scrcpy-mobile-main.zip
           ls -la scrcpy-mobile-main.zip
           unzip -o scrcpy-mobile-main.zip -x 'README*' || true
+          # The source zip wraps everything under a single top-level folder scrcpy-mobile-main/
+          # (porting/, external/, .gitmodules, ios-cmake/, scrcpy-app/...). Every later step
+          # (Fetch submodules, Patch zstd/adb, Build porting, Build VNC, Build libtsnet, Archive)
+          # references these at the repo root, so lift the contents up (incl. dotfiles).
+          cd scrcpy-mobile-main
+          shopt -s dotglob nullglob
+          mv * ../ 2>/dev/null || true
+          cd ..
+          rmdir scrcpy-mobile-main 2>/dev/null || true
+          ls -la
       - name: Fetch submodules
         run: |
           python3 - <<'PY'
