@@ -148,7 +148,25 @@ jobs:
           # make-libsdl.sh 'mkdir -p include' fails with 'File exists'. Pre-create include dir.
           mkdir -p porting/libs/include porting/libs/iphoneos/arm64 porting/libs/iphonesimulator/arm64 porting/libs/iphonesimulator/x86_64
           chmod -R u+rwX porting/libs
-          make -C porting
+          # Build adb + libsdl + ffmpeg first. ffmpeg's `make install` emits .pc into its
+          # own build dir (build/ffmpeg/iphoneos-arm64/lib/pkgconfig), but NOT into the
+          # PKG_CONFIG_PATH dir that scrcpy-config/meson and make-scrcpy.sh/cmake expect,
+          # hence "Dependency libavformat not found". Copy them over.
+          make -C porting ffmpeg
+          mkdir -p porting/libs/lib/pkgconfig
+          cp -v porting/build/ffmpeg/iphoneos-arm64/lib/pkgconfig/*.pc porting/libs/lib/pkgconfig/ 2>/dev/null || true
+          ls porting/libs/lib/pkgconfig/ 2>/dev/null || true
+          # make-scrcpy.sh compiles scrcpy per-arch via cmake and locates ffmpeg by
+          # pkg-config; inherit this path so cmake finds the .pc too.
+          export PKG_CONFIG_PATH="$PWD/porting/libs/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          # scrcpy is built for 3 archs by make-scrcpy.sh's for-loop; simulator archs would
+          # link the (arm64) ffmpeg .pc -> arch mismatch. User needs the real-device
+          # (iphoneos/arm64) IPA only, so restrict the for-loop to iphoneos/arm64.
+          # (edits the extracted build copy on the runner, not the repo source)
+          sed -i '' 's/iphoneos\/arm64:OS64 iphonesimulator\/arm64:SIMULATORARM64 iphonesimulator\/x86_64:SIMULATOR64/iphoneos\/arm64:OS64/' porting/Makefile 2>/dev/null || \
+          sed -i 's/iphoneos\/arm64:OS64 iphonesimulator\/arm64:SIMULATORARM64 iphonesimulator\/x86_64:SIMULATOR64/iphoneos\/arm64:OS64/' porting/Makefile 2>/dev/null || true
+          grep -n "for target in" porting/Makefile
+          make -C porting scrcpy
       - name: Build scrcpy-server
         run: make -C porting scrcpy-server
       - name: Archive
