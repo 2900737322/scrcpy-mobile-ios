@@ -196,12 +196,12 @@ jobs:
           # VNCClient was built with OpenSSL/TLS disabled, so drop its -lssl/-lcrypto link flags
           sudo chmod -R u+rwX scrcpy-app
           python3 - <<'PY'
-p='scrcpy-app/Scrcpy Remote.xcodeproj/project.pbxproj'
-s=open(p).read()
-s=s.replace('\t\t\t\t\t"-lssl",\n','').replace('\t\t\t\t\t"-lcrypto",\n','')
-open(p,'w').write(s)
-print('pbxproj dropped -lssl/-lcrypto:', '-lssl' not in s and '-lcrypto' not in s)
-PY
+          p='scrcpy-app/Scrcpy Remote.xcodeproj/project.pbxproj'
+          s=open(p).read()
+          s=s.replace('\t\t\t\t\t"-lssl",\n','').replace('\t\t\t\t\t"-lcrypto",\n','')
+          open(p,'w').write(s)
+          print('pbxproj dropped -lssl/-lcrypto:', '-lssl' not in s and '-lcrypto' not in s)
+          PY
       - name: Archive
         run: |
           set -euo pipefail
