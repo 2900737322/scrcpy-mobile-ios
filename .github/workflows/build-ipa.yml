@@ -96,7 +96,7 @@ jobs:
           PY
       - name: Install tools
         run: |
-          brew install meson ninja cmake openjdk@17 lz4 brotli googletest || true
+          brew install meson ninja cmake openjdk@17 lz4 brotli googletest nasm || true
           # adb-mobile requires exact protoc 28.3 -> download official binary
           if ! protoc --version 2>/dev/null | grep -q "28.3"; then
             echo "installing protoc 28.3..."
